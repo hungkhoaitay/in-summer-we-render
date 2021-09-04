@@ -95,41 +95,44 @@ pub fn two_norm6(a: &[f32; 6], b: &[f32; 6]) -> f32 {
 
 /// Spawns a single thread to compute the next "chunk" of closest points
 pub fn setup_run_indiv_thread_closest_points(
-    tx: std::sync::mpsc::Sender<(Vec<Point>, Vec<Point>)>,
+    tx: mpsc::Sender<(Vec<Point>, Vec<Point>)>,
     slices: &mut std::slice::Chunks<Point>,
     kd_tree: std::sync::Arc<kiddo::KdTree<f32, usize, 3_usize>>,
-    options_for_nearest: usize,
+    _options_for_nearest: usize,
     next_points: std::sync::Arc<Points>,
     params: std::sync::Arc<Params>,
     reference_frame: &mut Vec<Point>,
 ) -> std::thread::JoinHandle<()> {
-    // let kd = kd_tree.clone();
     let slice = slices.next().unwrap().to_owned();
 
-    // let now = Instant::now();
     let mut refer = reference_frame.clone();
-    // println!("cloning time: {}", now.elapsed().as_millis());
-
-    // let now = Instant::now();
-    thread::spawn(move || {
-        // let kd_arc_clone = kd_tree.clone();
-        // let next_points_clone = next_points.clone();
-        // let params_clone = params.clone();
-        // let mut nearests: Vec<usize> = Vec::new();
-        let mut closests: Vec<Point> = Vec::with_capacity(100);
-        for s in &slice {
-            let nearests =
-                s.method_of_neighbour_query(&kd_tree, options_for_nearest, params.density_radius);
-            let p = s.get_average_closest(&next_points, &nearests, &mut refer, &params);
-            closests.push(p);
-        }
-        // println!("time for 1 thread to finish: {}", now.elapsed().as_millis());
-        tx.send((closests, refer)).unwrap();
-    })
+    if params.kd_tree_use_euclidean {
+        thread::spawn(move || {
+            let mut closests: Vec<Point> = Vec::with_capacity(100);
+            for s in &slice {
+                let nearests =
+                    s.get_euclidean_neighbors(&kd_tree, params.density_radius);
+                let p = s.get_average_closest(&next_points, &nearests, &mut refer, &params);
+                closests.push(p);
+            }
+            tx.send((closests, refer)).unwrap();
+        })
+    } else {
+        thread::spawn(move || {
+            let mut closests: Vec<Point> = Vec::with_capacity(100);
+            for s in &slice {
+                let nearests =
+                    s.get_radius_neghbours(&kd_tree, params.density_radius);
+                let p = s.get_average_closest(&next_points, &nearests, &mut refer, &params);
+                closests.push(p);
+            }
+            tx.send((closests, refer)).unwrap();
+        })
+    }
 }
 
 pub fn setup_run_indiv_thread_closest_points6(
-    tx: std::sync::mpsc::Sender<(Vec<Point>, Vec<Point>)>,
+    tx: mpsc::Sender<(Vec<Point>, Vec<Point>)>,
     slices: &mut std::slice::Chunks<Point>,
     kd_tree: std::sync::Arc<kiddo::KdTree<f32, usize, 6_usize>>,
     _options_for_nearest: usize,
@@ -176,15 +179,15 @@ pub fn run_threads(
     params: &std::sync::Arc<Params>,
     reference_frame: &mut Vec<Point>,
 ) -> Vec<Point> {
-    let mut vrx: Vec<std::sync::mpsc::Receiver<(Vec<Point>, Vec<Point>)>> = Vec::with_capacity(12);
+    let mut vrx: Vec<mpsc::Receiver<(Vec<Point>, Vec<Point>)>> = Vec::with_capacity(12);
     let mut vhandle: Vec<std::thread::JoinHandle<()>> = Vec::with_capacity(12);
 
     // let now = Instant::now();
 
     for _i in 0..threads {
         let (tx, rx): (
-            std::sync::mpsc::Sender<(Vec<Point>, Vec<Point>)>,
-            std::sync::mpsc::Receiver<(Vec<Point>, Vec<Point>)>,
+            mpsc::Sender<(Vec<Point>, Vec<Point>)>,
+            mpsc::Receiver<(Vec<Point>, Vec<Point>)>,
         ) = mpsc::channel();
         vrx.push(rx);
         let handle = setup_run_indiv_thread_closest_points(
@@ -233,13 +236,13 @@ pub fn run_threads6(
     params: &std::sync::Arc<Params>,
     reference_frame: &mut Vec<Point>,
 ) -> Vec<Point> {
-    let mut vrx: Vec<std::sync::mpsc::Receiver<(Vec<Point>, Vec<Point>)>> = Vec::with_capacity(12);
+    let mut vrx: Vec<mpsc::Receiver<(Vec<Point>, Vec<Point>)>> = Vec::with_capacity(12);
     let mut vhandle: Vec<std::thread::JoinHandle<()>> = Vec::with_capacity(12);
 
     for _i in 0..threads {
         let (tx, rx): (
-            std::sync::mpsc::Sender<(Vec<Point>, Vec<Point>)>,
-            std::sync::mpsc::Receiver<(Vec<Point>, Vec<Point>)>,
+            mpsc::Sender<(Vec<Point>, Vec<Point>)>,
+            mpsc::Receiver<(Vec<Point>, Vec<Point>)>,
         ) = mpsc::channel();
         vrx.push(rx);
         let handle = setup_run_indiv_thread_closest_points6(
@@ -641,7 +644,7 @@ impl Points {
         // }
 
         if exists_output_dir {
-            println!("interpolation time: {}", now.elapsed().as_millis());
+            println!("{} {} {}", arc_params.kd_tree_use_euclidean, arc_params.kd_tree_query_dimension, now.elapsed().as_millis());
         }
 
         let mut point_data = Points::of(interpolated_points);
@@ -704,7 +707,8 @@ impl Points {
         }
 
         if exists_output_dir {
-            println!("interpolation time: {}", now.elapsed().as_millis());
+            // println!("interpolation time: {}", now.elapsed().as_millis());
+            println!("{} {} {}", arc_params.kd_tree_use_euclidean, arc_params.kd_tree_query_dimension, now.elapsed().as_millis());
         }
 
         let point_data = Points::of(interpolated_points);
@@ -871,6 +875,7 @@ pub struct Point {
     pub(crate) point_density: f32,
     pub(crate) point_size: f32,
     pub(crate) near_crack: bool,
+    pub(crate) num_matches: usize,
 }
 
 impl PartialEq for Point {
@@ -888,6 +893,7 @@ impl Point {
         point_density: f32,
         point_size: f32,
         near_crack: bool,
+        num_matches: usize,
     ) -> Self {
         Point {
             point_coord,
@@ -897,6 +903,7 @@ impl Point {
             point_density,
             point_size,
             near_crack,
+            num_matches,
         }
     }
 
@@ -929,6 +936,7 @@ impl Point {
             point_density: 0.0,
             point_size: 1.0,
             near_crack: false,
+            num_matches: 0,
         }
     }
 
@@ -1053,6 +1061,7 @@ impl Point {
             another_point.point_density,
             (self.point_size + another_point.point_size) / 2.0,
             false,
+            0
         )
     }
 
@@ -1071,11 +1080,11 @@ impl Point {
         another_point_mapping: u16,
         params: &std::sync::Arc<Params>,
     ) -> f32 {
-        let max_coor: f32 = 3.0 * params.scale_coor_delta.powi(2);
-        let scale_coor = max_coor.sqrt();
+        //let max_coor: f32 = 3.0 * params.scale_coor_delta.powi(2);
+        let scale_coor : f32 = 3.0_f32.sqrt() * params.scale_coor_delta;
 
-        let max_col: f32 = 3.0 * params.scale_col_delta.powi(2);
-        let scale_col = max_col.sqrt();
+        // let max_col: f32 = 3.0 * params.scale_col_delta.powi(2);
+        let scale_col: f32 = 3.0_f32.sqrt() * params.scale_col_delta;
 
         self.get_coord_delta(another_point) * params.penalize_coor / scale_coor
             + self.get_color_delta(another_point) * params.penalize_col / scale_col

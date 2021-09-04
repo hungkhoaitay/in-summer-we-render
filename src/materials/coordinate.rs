@@ -59,7 +59,7 @@ impl PointCoordinate {
 
     /// Add `PointColor` and `index` to create a `Point`
     pub fn set_color(&self, point_color: &PointColor, index: usize) -> Point {
-        Point::new(self.clone(), point_color.clone(), 0, index, 0.0, 1.0, false)
+        Point::new(self.clone(), point_color.clone(), 0, index, 0.0, 1.0, false, 0)
     }
 
     /// Return a midpoint of two `PointCoordinate`s
