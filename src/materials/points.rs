@@ -59,6 +59,40 @@ pub fn inf_norm(a: &[f32; 3], b: &[f32; 3]) -> f32 {
     }
 }
 
+pub fn inf_norm6(a: &[f32; 6], b: &[f32; 6]) -> f32 {
+    let mut max: f32;
+    let dx = (a[0] - b[0]).abs();
+    let dy = (a[1] - b[1]).abs();
+    let dz = (a[2] - b[2]).abs();
+    let dr = (a[3] - b[3]).abs();
+    let dg = (a[4] - b[4]).abs();
+    let db = (a[5] - b[5]).abs();
+    max = dx;
+    if dy > max { max = dy; } 
+    if dz > max { max = dz; } 
+    if dr > max { max = dr; } 
+    if dg > max { max = dg; } 
+    if db > max { max = db; } 
+    max
+}
+
+pub fn two_norm(a: &[f32; 3], b: &[f32; 3]) -> f32 {
+    let dx2 = (a[0] - b[0])*(a[0] - b[0]);
+    let dy2 = (a[1] - b[1])*(a[1] - b[1]);
+    let dz2 = (a[2] - b[2])*(a[2] - b[2]);
+    (dx2 + dy2 + dz2).sqrt()
+}
+
+pub fn two_norm6(a: &[f32; 6], b: &[f32; 6]) -> f32 {
+    let dx2 = (a[0] - b[0])*(a[0] - b[0]);
+    let dy2 = (a[1] - b[1])*(a[1] - b[1]);
+    let dz2 = (a[2] - b[2])*(a[2] - b[2]);
+    let dr2 = (a[3] - b[3])*(a[3] - b[3]);
+    let dg2 = (a[4] - b[4])*(a[4] - b[4]);
+    let db2 = (a[5] - b[5])*(a[5] - b[5]);
+    (dx2 + dy2 + dz2 + dr2 + dg2 + db2).sqrt()
+}
+
 /// Spawns a single thread to compute the next "chunk" of closest points
 pub fn setup_run_indiv_thread_closest_points(
     tx: std::sync::mpsc::Sender<(Vec<Point>, Vec<Point>)>,
@@ -92,6 +126,44 @@ pub fn setup_run_indiv_thread_closest_points(
         // println!("time for 1 thread to finish: {}", now.elapsed().as_millis());
         tx.send((closests, refer)).unwrap();
     })
+}
+
+pub fn setup_run_indiv_thread_closest_points6(
+    tx: std::sync::mpsc::Sender<(Vec<Point>, Vec<Point>)>,
+    slices: &mut std::slice::Chunks<Point>,
+    kd_tree: std::sync::Arc<kiddo::KdTree<f32, usize, 6_usize>>,
+    _options_for_nearest: usize,
+    next_points: std::sync::Arc<Points>,
+    params: std::sync::Arc<Params>,
+    reference_frame: &mut Vec<Point>,
+) -> std::thread::JoinHandle<()> {
+    let slice = slices.next().unwrap().to_owned();
+
+    let mut refer = reference_frame.clone();
+
+    if params.kd_tree_use_euclidean {
+        thread::spawn(move || {
+            let mut closests: Vec<Point> = Vec::with_capacity(100);
+            for s in &slice {
+                let nearests =
+                    s.get_euclidean_neighbors6(&kd_tree, params.density_radius);
+                let p = s.get_average_closest(&next_points, &nearests, &mut refer, &params);
+                closests.push(p);
+            }
+            tx.send((closests, refer)).unwrap();
+        })
+    } else {
+        thread::spawn(move || {
+            let mut closests: Vec<Point> = Vec::with_capacity(100);
+            for s in &slice {
+                let nearests =
+                    s.get_radius_neghbours6(&kd_tree, params.density_radius);
+                let p = s.get_average_closest(&next_points, &nearests, &mut refer, &params);
+                closests.push(p);
+            }
+            tx.send((closests, refer)).unwrap();
+        })
+    }
 }
 
 /// Iteratively spawns threads to perform interpolation.
@@ -152,6 +224,61 @@ pub fn run_threads(
     result
 }
 
+pub fn run_threads6(
+    threads: usize,
+    slices: &mut std::slice::Chunks<Point>,
+    kd_tree: &std::sync::Arc<kiddo::KdTree<f32, usize, 6_usize>>,
+    options_for_nearest: usize,
+    next_points: std::sync::Arc<Points>,
+    params: &std::sync::Arc<Params>,
+    reference_frame: &mut Vec<Point>,
+) -> Vec<Point> {
+    let mut vrx: Vec<std::sync::mpsc::Receiver<(Vec<Point>, Vec<Point>)>> = Vec::with_capacity(12);
+    let mut vhandle: Vec<std::thread::JoinHandle<()>> = Vec::with_capacity(12);
+
+    for _i in 0..threads {
+        let (tx, rx): (
+            std::sync::mpsc::Sender<(Vec<Point>, Vec<Point>)>,
+            std::sync::mpsc::Receiver<(Vec<Point>, Vec<Point>)>,
+        ) = mpsc::channel();
+        vrx.push(rx);
+        let handle = setup_run_indiv_thread_closest_points6(
+            tx,
+            slices,
+            kd_tree.clone(),
+            options_for_nearest,
+            next_points.clone(),
+            params.clone(),
+            reference_frame,
+        );
+        vhandle.push(handle);
+    }
+
+    for handle in vhandle {
+        handle.join().unwrap();
+    }
+
+    let mut result: Vec<Point> = Vec::with_capacity(100000);
+
+    for rx in vrx {
+        let res = rx.recv().unwrap();
+        result.extend(res.0);
+
+        // for i in 0..reference_frame.len() {
+        //     if reference_frame[i].mapping == 0 && res.1[i].mapping > 0 {
+        //         reference_frame[i].mapping = res.1[i].mapping;
+        //     }
+        // }
+
+        for (i, item) in reference_frame.iter_mut().enumerate() {
+            if item.mapping == 0 && res.1[i].mapping > 0 {
+                item.mapping = res.1[i].mapping;
+            }
+        }
+    }
+    result
+}
+
 /// Wrapper function for run_threads(). Slices the given Points into t chunks where t is the number of threads to be used.
 pub fn parallel_query_closests(
     data_copy: &[Point],
@@ -165,6 +292,28 @@ pub fn parallel_query_closests(
     let mut slices = data_copy.chunks((data_copy.len() as f32 / threads as f32).ceil() as usize);
 
     run_threads(
+        threads,
+        &mut slices,
+        kd_tree,
+        options_for_nearest,
+        next_points,
+        params,
+        reference_frame,
+    )
+}
+
+pub fn parallel_query_closests6(
+    data_copy: &[Point],
+    kd_tree: &std::sync::Arc<kiddo::KdTree<f32, usize, 6_usize>>,
+    threads: usize,
+    options_for_nearest: usize,
+    next_points: std::sync::Arc<Points>,
+    params: &std::sync::Arc<Params>,
+    reference_frame: &mut Vec<Point>,
+) -> Vec<Point> {
+    let mut slices = data_copy.chunks((data_copy.len() as f32 / threads as f32).ceil() as usize);
+
+    run_threads6(
         threads,
         &mut slices,
         kd_tree,
@@ -332,6 +481,30 @@ impl Points {
         }
         kdtree
     }
+    
+    /// Constructs and returns a kdtree from a class of Points
+    pub fn to_kdtree6(self) -> KdTree<f32, usize, 6> {
+        let mut kdtree: KdTree<f32, usize, 6> = KdTree::with_capacity(64).unwrap();
+        let mut shuffled_points = self.data;
+        shuffled_points.shuffle(&mut thread_rng());
+        for point in &shuffled_points {
+            kdtree
+                .add(
+                    &[
+                        point.point_coord.x,
+                        point.point_coord.y,
+                        point.point_coord.z,
+                        point.point_color.red as f32,
+                        point.point_color.green as f32,
+                        point.point_color.blue as f32
+                    ],
+                    point.index,
+                )
+                .unwrap();
+        }
+        kdtree
+    }
+
 
     /// Highlights unmapped points as Green in the reference frame
     pub fn mark_unmapped_points(
@@ -493,6 +666,49 @@ impl Points {
             marked_interpolated_frame =
                 self.mark_points_near_cracks(&point_data, exists_output_dir);
         }
+
+        (
+            point_data,
+            Points::of(self.reference_frame.clone()),
+            marked_interpolated_frame,
+        )
+    }
+    
+    /// Point to point interolation method
+    pub fn closest_with_ratio_average_points_recovery6(
+        &mut self,
+        next_points: Points,
+        params: Params,
+        exists_output_dir: bool,
+    ) -> (Points, Points, Points) {
+        let now = Instant::now();
+        self.reference_frame = next_points.data.clone();
+        let kd_tree = next_points.clone().to_kdtree6();
+
+        let arc_tree = std::sync::Arc::new(kd_tree);
+        let arc_next_points = std::sync::Arc::new(next_points);
+        let arc_params = std::sync::Arc::new(params);
+        let data_copy = self.data.clone();
+        let mut interpolated_points: Vec<Point> = Vec::new();
+
+        if !data_copy.is_empty() {
+            interpolated_points = parallel_query_closests6(
+                &data_copy,
+                &arc_tree,
+                arc_params.threads,
+                arc_params.options_for_nearest,
+                arc_next_points,
+                &arc_params,
+                &mut self.reference_frame,
+            );
+        }
+
+        if exists_output_dir {
+            println!("interpolation time: {}", now.elapsed().as_millis());
+        }
+
+        let point_data = Points::of(interpolated_points);
+        let marked_interpolated_frame = Points::new();
 
         (
             point_data,
@@ -746,6 +962,50 @@ impl Point {
             .collect()
     }
 
+    pub fn get_radius_neghbours6(
+        &self,
+        kd_tree: &std::sync::Arc<kiddo::KdTree<f32, usize, 6_usize>>,
+        radius: f32,
+    ) -> Vec<usize> {
+        kd_tree
+            .within_unsorted(
+                &[self.point_coord.x, 
+                self.point_coord.y, 
+                self.point_coord.z,
+                self.point_color.red as f32,
+                self.point_color.green as f32,
+                self.point_color.blue as f32],
+                radius,
+                &inf_norm6,
+            )
+            .unwrap()
+            .into_iter()
+            .map(|found| *found.1)
+            .collect()
+    }
+
+    pub fn get_euclidean_neighbors6(
+        &self,
+        kd_tree: &std::sync::Arc<kiddo::KdTree<f32, usize, 6_usize>>,
+        radius: f32,
+    ) -> Vec<usize> {
+        kd_tree
+            .within_unsorted(
+                &[self.point_coord.x, 
+                self.point_coord.y, 
+                self.point_coord.z,
+                self.point_color.red as f32,
+                self.point_color.green as f32,
+                self.point_color.blue as f32],
+                radius,
+                &two_norm6,
+            )
+            .unwrap()
+            .into_iter()
+            .map(|found| *found.1)
+            .collect()
+    }
+
     /// Returns k neighbouring points
     pub fn get_nearest_neighbours(
         &self,
@@ -757,6 +1017,25 @@ impl Point {
                 &[self.point_coord.x, self.point_coord.y, self.point_coord.z],
                 quantity,
                 &squared_euclidean,
+            )
+            .unwrap()
+            .into_iter()
+            .map(|found| *found.1)
+            .collect()
+    }
+
+    pub fn get_euclidean_neighbors(
+        &self,
+        kd_tree: &std::sync::Arc<kiddo::KdTree<f32, usize, 3_usize>>,
+        radius: f32,
+    ) -> Vec<usize> {
+        kd_tree
+            .within_unsorted(
+                &[self.point_coord.x, 
+                self.point_coord.y, 
+                self.point_coord.z],
+                radius,
+                &two_norm,
             )
             .unwrap()
             .into_iter()
@@ -872,10 +1151,18 @@ impl Point {
         _options_for_nearest: usize,
         radius: f32,
     ) -> Vec<usize> {
-        // let mut x = Vec::new(); x.push(self.index); if self.index + 1 < kd_tree.size() {x.push(self.index + 1);}
-        // x
-
         self.get_radius_neghbours(kd_tree, radius)
+    }
+
+    #[cfg(feature = "by_radius")]
+    /// queries neighbours by radius
+    pub fn method_of_neighbour_query6(
+        &self,
+        kd_tree: &std::sync::Arc<kiddo::KdTree<f32, usize, 6_usize>>,
+        _options_for_nearest: usize,
+        radius: f32,
+    ) -> Vec<usize> {
+        self.get_radius_neghbours6(kd_tree, radius)
     }
 }
 

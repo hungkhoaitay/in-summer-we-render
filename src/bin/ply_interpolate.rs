@@ -34,6 +34,16 @@ fn run() -> Result<()> {
               .takes_value(true)
               .multiple(false)
               .help("Method of interpolation"))
+     .arg(Arg::with_name("kd_tree_use_euclidean")
+              .long("kd_tree_use_euclidean")
+              .takes_value(false)
+              .multiple(false)
+              .help("Distance metric for KD-tree"))
+     .arg(Arg::with_name("kd_tree_dimension")
+              .long("kd_tree_dimension")
+              .takes_value(true)
+              .multiple(false)
+              .help("Dimension for KD-tree (3 or 6"))
      .arg(Arg::with_name("two_way")
               .long("two_way")
               .takes_value(false)
@@ -121,6 +131,14 @@ fn run() -> Result<()> {
         .unwrap_or("closest_with_ratio_average_points_recovery");
 
     let mut params: Params = Params::new();
+
+    params.kd_tree_use_euclidean = matches
+        .is_present("kd_tree_use_euclidean");
+    params.kd_tree_query_dimension = matches
+        .value_of("kd_tree_dimension")
+        .unwrap_or("3")
+        .parse::<u8>()
+        .unwrap();
     params.show_unmapped_points = matches.is_present("unmapped");
     params.mark_enlarged = matches.is_present("mark_enlarged");
     params.compute_frame_delta = matches.is_present("frame_delta");
@@ -190,6 +208,13 @@ fn run() -> Result<()> {
         .unwrap_or("10")
         .parse::<usize>()
         .unwrap();
+    params.options_for_nearest = matches
+        .value_of("nearest_points")
+        .unwrap_or("10")
+        .parse::<usize>()
+        .unwrap();
+
+    println!("{} {}", params.kd_tree_use_euclidean, params.kd_tree_query_dimension);
 
     interpolate(
         prev_frame_dir,
@@ -241,16 +266,28 @@ fn interpolate(
             end_reference_unmapped = reference_unmapped;
             end_marked_interpolated_frame = marked_interpolated_frame;
         } else {
-            let (result, reference_unmapped, marked_interpolated_frame) = prev
-                .closest_with_ratio_average_points_recovery(
-                    next,
-                    params.clone(),
-                    exists_output_dir,
-                ); //sum of first 3 must equal 1
+            if params.kd_tree_query_dimension == 3 {
+                let (result, reference_unmapped, marked_interpolated_frame) = prev
+                    .closest_with_ratio_average_points_recovery(
+                        next,
+                        params.clone(),
+                        exists_output_dir,
+                        ); //sum of first 3 must equal 1
+                end_result = result;
+                end_reference_unmapped = reference_unmapped;
+                end_marked_interpolated_frame = marked_interpolated_frame;
 
-            end_result = result;
-            end_reference_unmapped = reference_unmapped;
-            end_marked_interpolated_frame = marked_interpolated_frame;
+            } else {
+                let (result, reference_unmapped, marked_interpolated_frame) = prev
+                    .closest_with_ratio_average_points_recovery6(
+                        next,
+                        params.clone(),
+                        exists_output_dir,
+                        ); //sum of first 3 must equal 1
+                end_result = result;
+                end_reference_unmapped = reference_unmapped;
+                end_marked_interpolated_frame = marked_interpolated_frame;
+            }
         }
     }
 

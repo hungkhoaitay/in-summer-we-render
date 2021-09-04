@@ -32,7 +32,9 @@ pub struct Params {
     /// Weight for previous frame when averaging points to get interpolated point
     pub prev_weight: f32,
     /// Weight for next frame when averaging points to get interpolated point
-    pub next_weight: f32
+    pub next_weight: f32,
+    pub kd_tree_query_dimension: u8,
+    pub kd_tree_use_euclidean: bool,
 }
 
 impl Params {
@@ -52,7 +54,9 @@ impl Params {
             scale_coor_delta: 1.0,
             scale_col_delta: 1.0,
             prev_weight: 0.5,
-            next_weight: 0.5
+            next_weight: 0.5,
+            kd_tree_query_dimension: 3,
+            kd_tree_use_euclidean: false,
         }
     }
 }
