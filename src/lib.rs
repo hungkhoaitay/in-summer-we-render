@@ -6,6 +6,11 @@
 
 //#![warn(missing_docs)]
 
+#![allow(unused_imports)]
+#![allow(dead_code)]
+#![allow(unused_assignments)]
+#![allow(unused_variables)]
+
 #[macro_use]
 extern crate error_chain;
 
@@ -25,6 +30,7 @@ pub use errors::*;
 extern crate approx;
 
 mod io;
+mod logic;
 /// Module handling PLY
 mod ply;
 /// Module handling directory of ply files
@@ -35,9 +41,10 @@ mod render;
 
 pub use filter_and_transform::{fat, filter, transform};
 pub use io::{reader, writer};
+pub use logic::{ui_controller, ui_controller_manager};
 pub use ply_dir::PlyDir;
 pub use pointcloud::{color, coordinate, params, point, points};
 pub use processing::{filter_and_transform, interpolate, interpolate_controller};
-pub use render::{gui, gui_states, renderer};
+pub use render::{gui, renderer, ui, ui_manager};
 
 use std::time::Instant;

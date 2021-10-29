@@ -4,5 +4,14 @@ pub mod renderer;
 /// Module handling GUI for renderer
 pub mod gui;
 
-/// Module handling GUI's states
-pub mod gui_states;
+pub mod ui;
+
+pub mod ui_manager;
+
+mod window_producer;
+
+mod camera_producer;
+
+mod frame_renderer;
+
+mod video_renderer;

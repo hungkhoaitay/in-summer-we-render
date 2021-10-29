@@ -2,7 +2,8 @@
 extern crate error_chain;
 extern crate iswr;
 use clap::{App, Arg};
-use iswr::{errors::*, reader, renderer::Renderer};
+use iswr::{errors::*, reader };
+use iswr::{ ui_manager::UIManager, ui::UI, ui_controller::UIController, ui_controller_manager::UIControllerManager };
 
 // cargo run --release --bin test | cargo run --release --bin ply_view -- --eye=100,100,100
 quick_main!(run);
@@ -33,6 +34,15 @@ fn run() -> Result<()> {
                 .takes_value(true)
                 .multiple(false)
                 .help("Position of at"),
+        )
+        .arg(
+            Arg::with_name("background")
+                .short("b")
+                .long("background")
+                .use_delimiter(true)
+                .takes_value(true)
+                .multiple(false)
+                .help("Color of background"),
         )
         .arg(
             Arg::with_name("x")
@@ -102,6 +112,19 @@ fn run() -> Result<()> {
         None => None,
     };
 
+    let background_color = match matches.values_of("background") {
+        Some(vec) => Some(
+            Some(vec.collect::<Vec<_>>())
+                .filter(|vec| vec.len() == 3)
+                .map(process)
+                .chain_err(|| "Inappropriate number of arguments in background, need 3 arguments")?
+                .chain_err(|| {
+                    "Inappropriate type of arguments in background, should be float number {}"
+                })?,
+        ),
+        None => None,
+    };
+
     let x = match matches.value_of("x") {
         Some(s) => Some(process_u32(s).chain_err(|| "Inappropriate type of arguments in x")?),
         None => None,
@@ -127,11 +150,10 @@ fn run() -> Result<()> {
 
     let mut ply = reader::read(input).chain_err(|| "Problem with the input")?;
 
-    let mut renderer = Renderer::new(None, None, None);
-
-    renderer.config_camera(eye, at);
-
-    renderer.save_to_png(&mut ply, x, y, width, height, output)?;
+    let ui_controller: Box<dyn UIController> = UIControllerManager::new();
+    let mut ui : Box<dyn UI> = UIManager::new(ui_controller);
+    ui.start(ply.get_title(), width, height, background_color, eye, at);
+    ui.save_to_png(&mut ply, x, y, width, height, output)?;
 
     Ok(())
 }
