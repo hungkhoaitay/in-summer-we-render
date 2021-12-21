@@ -17,7 +17,6 @@ use crate::render::video_renderer;
 use crate::gui::gui::GUI;
 
 use kiss3d::conrod::widget::id::Generator;
-// use crate::gui::gui::{ gui, Ids, InfoBar };
 
 pub struct GUIManager {
     widget_id_generator: Option<Generator>

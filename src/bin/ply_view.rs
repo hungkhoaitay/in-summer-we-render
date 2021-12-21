@@ -3,7 +3,10 @@ extern crate error_chain;
 extern crate iswr;
 use clap::{App, Arg};
 use iswr::{errors::*, reader::read, PlyDir};
-use iswr::{ ui_manager::UIManager, ui::UI, ui_controller::UIController, ui_controller_manager::UIControllerManager };
+use iswr::{
+    ui::UI, ui_controller::UIController, ui_controller_manager::UIControllerManager,
+    ui_manager::UIManager,
+};
 use std::path::Path;
 
 quick_main!(run);
@@ -112,7 +115,7 @@ fn run() -> Result<()> {
     };
 
     let ui_controller: Box<dyn UIController> = UIControllerManager::new();
-    let mut ui : Box<dyn UI> = UIManager::new(ui_controller);
+    let mut ui: Box<dyn UI> = UIManager::new(ui_controller);
 
     match input {
         Some(path) => {
@@ -126,8 +129,16 @@ fn run() -> Result<()> {
             } else if new_path.is_dir() {
                 let ply_dir = PlyDir::new(path);
 
-                ui.start(ply_dir.get_title(), width, height, background_color, eye, at);
-                ui.render_video(ply_dir).chain_err(|| "Something went wrong")?;
+                ui.start(
+                    ply_dir.get_title(),
+                    width,
+                    height,
+                    background_color,
+                    eye,
+                    at,
+                );
+                ui.render_video(ply_dir)
+                    .chain_err(|| "Something went wrong")?;
             } else {
                 eprintln!("No such file or dir {}", path)
             }

@@ -2,8 +2,11 @@
 extern crate error_chain;
 extern crate iswr;
 use clap::{App, Arg};
-use iswr::{errors::*, reader };
-use iswr::{ ui_manager::UIManager, ui::UI, ui_controller::UIController, ui_controller_manager::UIControllerManager };
+use iswr::{errors::*, reader};
+use iswr::{
+    ui::UI, ui_controller::UIController, ui_controller_manager::UIControllerManager,
+    ui_manager::UIManager,
+};
 
 // cargo run --release --bin test | cargo run --release --bin ply_view -- --eye=100,100,100
 quick_main!(run);
@@ -151,7 +154,7 @@ fn run() -> Result<()> {
     let mut ply = reader::read(input).chain_err(|| "Problem with the input")?;
 
     let ui_controller: Box<dyn UIController> = UIControllerManager::new();
-    let mut ui : Box<dyn UI> = UIManager::new(ui_controller);
+    let mut ui: Box<dyn UI> = UIManager::new(ui_controller);
     ui.start(ply.get_title(), width, height, background_color, eye, at);
     ui.save_to_png(&mut ply, x, y, width, height, output)?;
 

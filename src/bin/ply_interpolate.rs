@@ -1,13 +1,9 @@
 #[macro_use]
 extern crate error_chain;
-extern crate iswr;
-// use std::env;
 extern crate clap;
+extern crate iswr;
 use clap::{App, Arg};
 use iswr::{errors::*, interpolate::*, params::Params, points, reader, writer};
-// use std::io::{self, Write};
-
-// use std::path::{ PathBuf };
 
 // example usage: cargo ply_interpolate --unmapped
 quick_main!(run);

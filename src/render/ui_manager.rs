@@ -1,4 +1,4 @@
- use crate::errors::*;
+use crate::errors::*;
 
 use crate::logic::ui_controller::UIController;
 use crate::render::ui::UI;
@@ -8,15 +8,13 @@ use crate::ply_dir::PlyDir;
 use crate::points::Points;
 use nalgebra::Point3;
 
-use kiss3d::window::Window;
 use kiss3d::camera::ArcBall;
+use kiss3d::window::Window;
 
-use crate::render::window_producer;
 use crate::render::camera_producer;
 use crate::render::frame_renderer;
 use crate::render::video_renderer;
-
-// use crate::gui::gui::{ gui, Ids, InfoBar };
+use crate::render::window_producer;
 
 pub struct UIManager {
     ui_controller: Box<dyn UIController>,
@@ -25,7 +23,10 @@ pub struct UIManager {
 }
 
 impl UIManager {
-    pub fn new(ui_controller: Box<dyn UIController>) -> Box<dyn UI> where Self: Sized {
+    pub fn new(ui_controller: Box<dyn UIController>) -> Box<dyn UI>
+    where
+        Self: Sized,
+    {
         Box::new(UIManager {
             ui_controller: ui_controller,
             window: None,
@@ -43,23 +44,28 @@ impl UIManager {
 
     /// Render with default camera
     pub fn render(&mut self) -> bool {
-        self.window.as_mut().unwrap().render_with_camera(self.camera.as_mut().unwrap())
+        self.window
+            .as_mut()
+            .unwrap()
+            .render_with_camera(self.camera.as_mut().unwrap())
     }
 
-    pub (crate) fn draw_point_with_size(&mut self, point: &Point3<f32>, color: &Point3<f32>, size: f32) {
-        self.window.as_mut().unwrap().draw_point_with_size(point, color, size);
+    pub(crate) fn draw_point_with_size(
+        &mut self,
+        point: &Point3<f32>,
+        color: &Point3<f32>,
+        size: f32,
+    ) {
+        self.window
+            .as_mut()
+            .unwrap()
+            .draw_point_with_size(point, color, size);
     }
-
-    // pub fn render_frame(&mut self, data: &Points, ids: &Ids, app: &mut InfoBar) {
-    //     frame_renderer::render_frame(self, data, ids, app);
-    // }
 
     pub fn render_frame(&mut self, data: &Points) {
-        // frame_renderer::render_frame(self, data, ids, app);
         frame_renderer::render_frame(self, data);
     }
 }
-
 
 impl UI for UIManager {
     fn start(
@@ -71,21 +77,21 @@ impl UI for UIManager {
         eye: Option<Point3<f32>>,
         at: Option<Point3<f32>>,
     ) {
-        self.window = Some(window_producer::start_window(title, width, height, background_color));
+        self.window = Some(window_producer::start_window(
+            title,
+            width,
+            height,
+            background_color,
+        ));
         self.camera = Some(camera_producer::start_camera(eye, at));
     }
 
     /// Open the window and render the frame many times
     fn render_image(&mut self, data: &Points) {
-        // self.window.conrod_ui_mut().theme = gui::theme();
-        // let ids = gui::Ids::new(self.window.conrod_ui_mut().widget_id_generator());
-        // let mut app = gui::InfoBar::new_closed_state();
-
         self.require_window_not_null();
         self.require_camera_not_null();
 
         while self.render() {
-            // self.render_frame(data, &ids, &mut app);
             self.render_frame(data);
         }
     }
@@ -94,9 +100,7 @@ impl UI for UIManager {
         video_renderer::render_video(self, ply_dir)
     }
 
-    fn change_info_bar_state(&mut self) {
-
-    }
+    fn change_info_bar_state(&mut self) {}
 
     /// Render a ply file to png format
     ///

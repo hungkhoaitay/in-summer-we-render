@@ -1,6 +1,5 @@
-
-use kiss3d::window::Window;
 use kiss3d::light::Light;
+use kiss3d::window::Window;
 
 use nalgebra::Point3;
 
@@ -15,7 +14,12 @@ const DEFAULT_HEIGHT: u32 = 600u32;
 
 // const WHITE_COLOR: Point3<f32> = Point3::origin();
 
-pub (crate) fn start_window(title: Option<&str>, width: Option<u32>, height: Option<u32>, background_color: Option<Point3<f32>>) -> Window {
+pub(crate) fn start_window(
+    title: Option<&str>,
+    width: Option<u32>,
+    height: Option<u32>,
+    background_color: Option<Point3<f32>>,
+) -> Window {
     let mut window = Window::new_with_size(
         title.unwrap_or(DEFAULT_TITLE),
         width.unwrap_or(DEFAULT_WIDTH),

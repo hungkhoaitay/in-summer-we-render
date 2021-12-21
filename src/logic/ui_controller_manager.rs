@@ -1,14 +1,15 @@
-
 use crate::logic::ui_controller::UIController;
-use crate::render::{ ui::UI, ui_manager::UIManager};
-use kiss3d::conrod::event::{ Event };
+use crate::render::{ui::UI, ui_manager::UIManager};
+use kiss3d::conrod::event::Event;
 
 pub struct UIControllerManager {}
 
 impl UIControllerManager {
-    pub fn new() -> Box<dyn UIController> where Self: Sized {
-        Box::new(UIControllerManager {
-        })
+    pub fn new() -> Box<dyn UIController>
+    where
+        Self: Sized,
+    {
+        Box::new(UIControllerManager {})
     }
 }
 

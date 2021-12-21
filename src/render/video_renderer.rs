@@ -1,12 +1,12 @@
 use crate::errors::*;
 
-use crate::render::ui_manager::UIManager;
 use crate::ply_dir::PlyDir;
+use crate::render::ui_manager::UIManager;
 
+use crate::ply::Ply;
 use crate::reader::read;
 use std::sync::mpsc::channel;
 use std::sync::Arc;
-use crate::ply::Ply;
 
 pub fn render_video(ui_manager: &mut UIManager, ply_dir: PlyDir) -> Result<()> {
     let len = ply_dir.count();
@@ -33,27 +33,9 @@ pub fn render_video(ui_manager: &mut UIManager, ply_dir: PlyDir) -> Result<()> {
     // let mut is_stop = false;
 
     while ui_manager.render() {
-        // for event in self.window.conrod_ui().global_input().events() {
-        //     match *event {
-        //         Event::Raw(Input::Press(Button::Keyboard(Key::Space))) => {
-        //             if is_stop {
-        //                 is_stop = false
-        //             } else {
-        //                 is_stop = true
-        //             }
-        //         }
-        //         _ => {}
-        //     }
-        // }
-
-        // if !is_stop {
-        //     frame = rx.recv().unwrap();
-        // }
-
         frame = rx.recv().unwrap();
         match &frame {
             Ok(f) => {
-                // uiManager.render_frame(f.get_points_as_ref(), &ids, &mut app);
                 ui_manager.render_frame(f.get_points_as_ref());
             }
             Err(e) => {
